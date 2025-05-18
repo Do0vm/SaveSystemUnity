@@ -1,20 +1,22 @@
-﻿using UnityEngine;
+﻿// SaveMenuScript.cs
+using UnityEngine;
 using UnityEngine.SceneManagement;
-using TMPro; 
-using System.Collections.Generic; // For List
+using TMPro;
+using System.Collections.Generic;
+using System.Linq; // Needed for List operations if any are added
 
 [System.Serializable]
-public class SaveSlotUIElements 
+public class SaveSlotUIElements
 {
-    public int slotNumber; 
-    public GameObject slotRootPanel; 
+    public int slotNumber;
+    public GameObject slotRootPanel;
 
     [Header("Panels within Slot")]
     public GameObject hasSavePanel; // Panel to show if save exists
-    public GameObject noSavePanel;  // Panel to show if slot is empty
+    public GameObject noSavePanel; // Panel to show if slot is empty
 
     [Header("Text Elements")]
-    public TextMeshProUGUI infoText_HasSave; // e.g., "Money: 1000 | Player: Pat | Enemies: 5"
+    public TextMeshProUGUI infoText_HasSave; // e.g., "Player: Pat | Lvl: 5 | Money: 1000 | Enemies: 5"
     public TextMeshProUGUI slotNameText_HasSave; // e.g. "Slot 1 - Forest Glade"
     public TextMeshProUGUI slotNameText_NoSave; // e.g. "Slot 1 - Empty"
 }
@@ -22,7 +24,7 @@ public class SaveSlotUIElements
 public class SaveMenuScript : MonoBehaviour
 {
     [Header("Scene Configuration")]
-    [SerializeField] private string gameSceneName = "GameScene"; 
+    [SerializeField] private string gameSceneName = "GameScene";
 
     [Header("Main UI Panels")]
     [SerializeField] private GameObject mainPanel;
@@ -39,6 +41,13 @@ public class SaveMenuScript : MonoBehaviour
         {
             Debug.LogError("SaveSystem instance not found! Ensure it's initialized before this menu.");
             // Optionally disable UI or show an error message to the player
+            // Find or instantiate SaveSystem if it doesn't exist? (Less common pattern)
+            GameObject saveSystemGO = GameObject.Find("SaveSystem"); // Or the name of your SaveSystem GameObject
+            if (saveSystemGO == null)
+            {
+                Debug.LogError("SaveSystem GameObject not found in scene!");
+                // Consider instantiating the prefab if it should be auto-created
+            }
             return;
         }
         ShowMainPanel(); // Start by showing the main menu panel
@@ -74,6 +83,7 @@ public class SaveMenuScript : MonoBehaviour
 #endif
     }
 
+    // Refreshes the visual display of all save slots in the UI
     private void UpdateAllSlotsVisuals()
     {
         if (SaveSystem.instance == null)
@@ -82,23 +92,25 @@ public class SaveMenuScript : MonoBehaviour
             return;
         }
 
+        Debug.Log("Updating all save slot visuals...");
+
         foreach (var slotVisuals in saveSlotVisuals)
         {
             bool hasSave = SaveSystem.instance.HasSave(slotVisuals.slotNumber);
             slotVisuals.hasSavePanel.SetActive(hasSave);
             slotVisuals.noSavePanel.SetActive(!hasSave);
 
-
-
             if (hasSave)
             {
+                // Peek the data directly from the file for display
                 SaveData tempData = SaveSystem.instance.PeekSlotData(slotVisuals.slotNumber);
-                if (tempData != null && tempData.player != null)
+                // Ensure tempData and its nested objects are not null before accessing
+                if (tempData != null && tempData.player != null && tempData.player.stats != null && tempData.gameProgress != null)
                 {
                     if (slotVisuals.infoText_HasSave != null)
                     {
-                        // Customize this text as needed
-                        slotVisuals.infoText_HasSave.text = $"Player: {tempData.player.psuedo}\nMoney: {tempData.player.stats.money}\nEnemies Defeated: {tempData.gameProgress.enemiesDestroyedCount}";
+                        // Customize this text as needed - Includes player level and enemies destroyed
+                        slotVisuals.infoText_HasSave.text = $"Player: {tempData.player.psuedo} | Lvl: {tempData.player.stats.lvl}\nMoney: {tempData.player.stats.money}\nEnemies Defeated: {tempData.gameProgress.enemiesDestroyedCount}";
                     }
                     if (slotVisuals.slotNameText_HasSave != null)
                     {
@@ -107,122 +119,169 @@ public class SaveMenuScript : MonoBehaviour
                 }
                 else
                 {
-                    if (slotVisuals.infoText_HasSave != null) slotVisuals.infoText_HasSave.text = "Data Error";
+                    // Handle cases where file exists but data is corrupted or incomplete
+                    Debug.LogWarning($"Save file for slot {slotVisuals.slotNumber} seems corrupted or incomplete.");
+                    if (slotVisuals.infoText_HasSave != null) slotVisuals.infoText_HasSave.text = "Data Error or Empty";
                     if (slotVisuals.slotNameText_HasSave != null) slotVisuals.slotNameText_HasSave.text = $"Save Slot {slotVisuals.slotNumber} - Error";
                 }
             }
             else
             {
+                // Slot is empty
                 if (slotVisuals.slotNameText_NoSave != null)
                 {
                     slotVisuals.slotNameText_NoSave.text = $"Save Slot {slotVisuals.slotNumber} - Empty";
                 }
-                if (slotVisuals.infoText_HasSave != null && slotVisuals.noSavePanel.activeSelf)
-                {
-      
-                }
+                // No need to set infoText_HasSave if noSavePanel is active, but can clear it
+                if (slotVisuals.infoText_HasSave != null) slotVisuals.infoText_HasSave.text = "";
             }
         }
+        Debug.Log("Finished updating save slot visuals.");
     }
 
 
-
-    public void OnContinueButtonPressed(int slotNumber)
-    {
-        Debug.Log($"Continue button pressed for slot: {slotNumber}");
-        if (SaveSystem.instance == null) return;
-
-        PlayerPrefs.SetInt("SaveIndex", slotNumber);
-        SaveSystem.instance.SetSlot(slotNumber);
-        SaveSystem.instance.Load(slotNumber);
-        SceneManager.LoadScene(gameSceneName);
-    }
-
+    // Called by UI button to start a new game
     public void OnNewGameButtonPressed(int slotNumber)
     {
         Debug.Log($"New Game button pressed for slot: {slotNumber}");
         if (SaveSystem.instance == null) return;
 
-
-        PlayerPrefs.SetInt("SaveIndex", slotNumber);
+        // Set the current slot and reset its data (deletes file and clears in-memory data)
         SaveSystem.instance.SetSlot(slotNumber);
-        SaveSystem.instance.ResetSlot(slotNumber); // Deletes old file, creates new empty SaveData in memory
+        SaveSystem.instance.ResetSlot(slotNumber); // This creates a new default SaveData in memory
+
+        // PlayerPrefs.SetInt("SaveIndex", slotNumber); // ResetSlot also updates the CurrentSlot which is stored
+
+        // Load the game scene. The LevelLoader in the scene will use the new default SaveSystem.instance.data
         SceneManager.LoadScene(gameSceneName);
     }
 
+    // Called by UI button to continue a saved game (reloads the scene)
+    public void OnContinueButtonPressed(int slotNumber)
+    {
+        Debug.Log($"Continue button pressed for slot: {slotNumber}");
+        if (SaveSystem.instance == null) return;
+
+        if (!SaveSystem.instance.HasSave(slotNumber))
+        {
+            Debug.LogWarning($"Slot {slotNumber} is empty. Cannot continue.");
+            // Optionally show a message to the player
+            return;
+        }
+
+        // Set the current slot and load its data into SaveSystem.instance.data
+        SaveSystem.instance.SetSlot(slotNumber);
+        SaveSystem.instance.Load(slotNumber); // This loads data INTO SaveSystem.instance.data
+
+        // PlayerPrefs.SetInt("SaveIndex", slotNumber); // Load also updates the CurrentSlot which is stored
+
+        // Load the game scene. The LevelLoader.Start will pick up SaveSystem.instance.data
+        // and call ApplyLoadedDataToScene()
+        SceneManager.LoadScene(gameSceneName);
+    }
+
+
+    // Called by UI button to delete a save file
     public void OnDeleteButtonPressed(int slotNumber)
     {
         Debug.Log($"Delete button pressed for slot: {slotNumber}");
         if (SaveSystem.instance == null) return;
 
-        // IMPORTANT: Add a confirmation dialog here! "Are you sure you want to delete this save?"
-        // Example (pseudo-code for confirmation):
-        // ConfirmationDialog.Show("Delete Save?", $"Really delete save data for slot {slotNumber}?", () => {
-        //     SaveSystem.instance.ResetSlot(slotNumber);
-        //     UpdateAllSlotsVisuals(); // Refresh UI
-        // });
-
-        SaveSystem.instance.ResetSlot(slotNumber); 
-        UpdateAllSlotsVisuals(); 
-    }
-
-   
-
-    public void SaveCurrentGameToSlot(int slotNumber)
-    {
-        if (SaveSystem.instance == null)
+        if (!SaveSystem.instance.HasSave(slotNumber))
         {
-            Debug.LogError("SaveSystem not available to save game.");
+            Debug.Log($"No save file found for slot {slotNumber} to delete.");
             return;
         }
 
-        Debug.Log($"Attempting to save current game to slot: {slotNumber}");
-        PlayerPrefs.SetInt("SaveIndex", slotNumber); // Good to keep this updated
-        SaveSystem.instance.SetSlot(slotNumber); 
-        SaveSystem.instance.Save(); 
-        Debug.Log($"Game explicitly saved to slot {slotNumber}");
+        // IMPORTANT: Implement a confirmation dialog before deleting!
+        // For now, direct delete:
+        SaveSystem.instance.ResetSlot(slotNumber); // Deletes file and resets in-memory data IF it was the current slot
+        UpdateAllSlotsVisuals(); // Refresh UI after deletion
+    }
 
-        if (saveSlotsPanel.activeInHierarchy)
+    // --- ADDED/MODIFIED ---
+    // Called by a button in the game scene (e.g., pause menu) to save the current game state
+    public void SaveCurrentGameToSlot(int slotNumber)
+    {
+        Debug.Log($"Attempting to save current game to slot: {slotNumber}");
+        if (SaveSystem.instance == null || SaveSystem.instance.data == null)
+        {
+            Debug.LogError("SaveSystem not available or data not loaded to save game.");
+            return;
+        }
+
+        // Ensure SaveSystem is set to the correct slot before saving
+        SaveSystem.instance.SetSlot(slotNumber);
+
+        // Trigger the save logic in SaveSystem
+        SaveSystem.instance.Save();
+
+        Debug.Log($"Game saved to slot {slotNumber}.");
+
+        // If the save slots UI is currently open, refresh it to show the update
+        if (saveSlotsPanel != null && saveSlotsPanel.activeInHierarchy)
         {
             UpdateAllSlotsVisuals();
         }
     }
 
-    
+    // --- MODIFIED ---
+    // Called by a button in the save menu to load data into the *currently active* scene
+    // Use with caution, requires careful scene setup (e.g., enemies must already be present)
     public void LoadSlotDataIntoCurrentScene(int slotNumber)
     {
+        Debug.Log($"Loading data from slot {slotNumber} via scene reload."); // Changed log message
         if (SaveSystem.instance == null)
         {
-            Debug.LogError("SaveSystem not available to load data into current scene.");
+            Debug.LogError("SaveSystem not available to load data.");
             return;
         }
 
-        Debug.Log($"Loading data from slot {slotNumber} into current game session without scene reload.");
-        PlayerPrefs.SetInt("SaveIndex", slotNumber);
-        SaveSystem.instance.SetSlot(slotNumber);
-        SaveSystem.instance.Load(slotNumber); // Load data into SaveSystem.instance.data
+        if (!SaveSystem.instance.HasSave(slotNumber))
+        {
+            Debug.LogWarning($"Slot {slotNumber} is empty. Cannot load data.");
+            return;
+        }
 
+        // 1. Set the current slot
+        SaveSystem.instance.SetSlot(slotNumber);
+
+        // 2. Load data from the file into SaveSystem.instance.data
+        SaveSystem.instance.Load(slotNumber); // This populates SaveSystem.instance.data
+
+        // 3. Load the game scene. The LevelLoader and PlayerSave in the new scene
+        //    will automatically apply the loaded data upon their Start() calls.
+        SceneManager.LoadScene(gameSceneName); // <--- THIS IS THE ADDITION
+
+        // The following lines become redundant if SceneManager.LoadScene is called,
+        // as the current scene objects will be destroyed and new ones instantiated.
+        // If you intend to keep a distinct "load into current scene" functionality,
+        // then you'd remove the SceneManager.LoadScene call and keep these.
+        /*
         PlayerSave player = FindObjectOfType<PlayerSave>();
         if (player != null)
         {
-            player.ApplyLoadedData(); // This method in PlayerSave should read from SaveSystem.instance.data
+            player.ApplyLoadedData();
+            Debug.Log("Applied player data from load.");
         }
-        else Debug.LogError("PlayerSave object not found to apply loaded data.");
+        else Debug.LogError("PlayerSave object not found in current scene to apply loaded data.");
 
         LevelLoader levelLoader = FindObjectOfType<LevelLoader>();
         if (levelLoader != null)
         {
-            levelLoader.SpawnCoinsFromSave(); // Assumes this clears old and spawns from SaveSystem.instance.data
+            levelLoader.ApplyLoadedDataToScene();
+            Debug.Log("Applied LevelLoader data from load.");
         }
-        else Debug.LogWarning("LevelLoader not found. Cannot update coins from loaded data.");
+        else Debug.LogWarning("LevelLoader not found in current scene. Cannot update scene state (coins/enemies) from loaded data.");
+        */
 
-        
+        // 4. Refresh the UI (only if the menu persists after scene load, which is unlikely)
+        // This part is typically not needed if you're loading a new scene, as the menu itself might be destroyed.
+        // If (saveSlotsPanel != null && saveSlotsPanel.activeInHierarchy)
+        // {
+        //     UpdateAllSlotsVisuals();
+        // }
 
-        Debug.Log($"Data from slot {slotNumber} applied to current scene state.");
-
-        if (saveSlotsPanel.activeInHierarchy)
-        {
-            UpdateAllSlotsVisuals();
-        }
+        // Debug.Log($"Data from slot {slotNumber} loaded, new scene '{gameSceneName}' will be loaded. UI refreshed.");
     }
 }

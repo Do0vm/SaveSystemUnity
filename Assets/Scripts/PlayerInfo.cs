@@ -1,75 +1,101 @@
+// Make sure these are [System.Serializable]
 
-using System;
+// PlayerStats.cs (or part of PlayerData.cs)
 using System.Collections.Generic;
-
-
-[Serializable]
-public class SimpleAudioValues
-{
-    public float audioVolume = 1.0f; 
-    public SimpleAudioValues()
-    {
-        audioVolume = 1.0f;
-    }
-}
+using UnityEngine;
 
 [System.Serializable]
 public class PlayerStats
 {
-    public int vigor, endurance, force, dexterity, intelligence, charisma;
-    public int lvl, xp;
+    public int vigor;
+    public int endurance;
+    public int force;
+    public int dexterity;
+    public int intelligence;
+    public int charisma;
+    public int lvl; // This will be incremented
+    public int xp;
     public int money;
-    public bool[] defeatedBosses = new bool[2]; // Consider initializing size if fixed
+    public bool[] defeatedBosses = new bool[2]; // Default or from save
 
+    // Constructor to initialize default values if needed
     public PlayerStats()
     {
-        // Set default values if needed
-        money = 0;
-        lvl = 1;
-        // Initialize defeatedBosses if not done by array declaration
-        if (defeatedBosses == null || defeatedBosses.Length != 2)
-        {
-            defeatedBosses = new bool[2];
-        }
+        lvl = 1; // Example starting level
+        // Initialize other stats as needed
+        defeatedBosses = new bool[2]; // Ensure array is initialized
     }
 }
+[System.Serializable] // IMPORTANT
+public class GameProgress
+{
+    public int enemiesDestroyedCount; // This is correctly saving
 
+    // THIS IS LIKELY THE ISSUE:
+    // Make sure this line exists, is PUBLIC, and is part of the GameProgress class
+    public List<string> defeatedEnemyIDs = new List<string>();
+
+    // Constructor to ensure the list is always initialized
+    public GameProgress()
+    {
+        defeatedEnemyIDs = new List<string>();
+    }
+}
+// PlayerData.cs (or part of SaveData.cs)
 [System.Serializable]
 public class PlayerData
 {
-    public string psuedo = "Player"; // Default name
-    public PlayerStats stats = new PlayerStats(); // Initialize
-    public SerializableVector3 position; // Will be set from player's transform
+    public string psuedo = "Patrick";
+    public SerializableVector3 position;
+    public PlayerStats stats = new PlayerStats(); // Automatically initializes with PlayerStats constructor
 
     public PlayerData()
     {
-        if (stats == null) stats = new PlayerStats();
-        // Default position if necessary, though usually set on save
-        position = SerializableVector3.FromVector3(UnityEngine.Vector3.zero);
+        stats = new PlayerStats(); // Ensure stats is never null
     }
 }
 
-[System.Serializable]
-public class GameProgress // For enemy count and other general progress
+
+//// If not already defined, SerializableVector3 for saving Vector3
+[System.Serializable] // IMPORTANT
+public class SerializableVector3 // Make sure you have this for position
 {
-    public int enemiesDestroyedCount = 0;
-    // Add other general game progress flags/data here
+    public float x, y, z;
+    // Constructor and ToVector3/FromVector3 methods
+    public SerializableVector3(float rX, float rY, float rZ) { x = rX; y = rY; z = rZ; }
+    public Vector3 ToVector3() { return new Vector3(x, y, z); }
+    public static SerializableVector3 FromVector3(Vector3 v3) { return new SerializableVector3(v3.x, v3.y, v3.z); }
 }
 
+// If not already defined, SimpleAudioValues for saving audio settings
+[System.Serializable]
+public class SimpleAudioValues
+{
+    public float masterVolume = 1f;
+    public float musicVolume = 0.8f;
+    public float sfxVolume = 0.8f;
+    // Add any other audio settings you need
+}
+
+
+// SaveData.cs (ensure it includes GameProgress)
 [System.Serializable]
 public class SaveData
 {
-    public PlayerData player = new PlayerData(); // Initialize
-    public List<SerializableVector3> coinPositions = new List<SerializableVector3>(); // Initialize
-    public SimpleAudioValues audioValues = new SimpleAudioValues(); // Initialize
-    public GameProgress gameProgress = new GameProgress(); // Initialize for enemy count
+    public PlayerData player = new PlayerData();
+    public List<SerializableVector3> coinPositions = new List<SerializableVector3>();
+    public SimpleAudioValues audioValues = new SimpleAudioValues();
+    public GameProgress gameProgress = new GameProgress(); // Make sure this is initialized
 
-    public SaveData()
+    //public List<string> destroyedEnemyIDs = new List<string>();
+
+
+    public SaveData() // Constructor for new save data
     {
-        // Ensure all members are initialized to avoid nulls
-        if (player == null) player = new PlayerData();
-        if (coinPositions == null) coinPositions = new List<SerializableVector3>();
-        if (audioValues == null) audioValues = new SimpleAudioValues();
-        if (gameProgress == null) gameProgress = new GameProgress();
+        player = new PlayerData();
+        coinPositions = new List<SerializableVector3>();
+        audioValues = new SimpleAudioValues();
+        //destroyedEnemyIDs = new List<string>();
+        gameProgress = new GameProgress(); // Ensures gameProgress and its defeatedEnemyIDs list are initialized
     }
 }

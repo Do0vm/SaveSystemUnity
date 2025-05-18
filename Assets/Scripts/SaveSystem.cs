@@ -16,24 +16,59 @@ public class SaveSystem : MonoBehaviour
         if (instance == null)
         {
             instance = this;
-            DontDestroyOnLoad(gameObject); // Persist across scenes
-            filePath = Application.persistentDataPath; // Where save files are stored
+            DontDestroyOnLoad(gameObject);
 
-            // Load the last used slot, or default to slot 1 if none set
+            // --- MODIFIED SECTION FOR FILE PATH ---
+            string baseSavePath;
+            if (Application.isEditor)
+            {
+                baseSavePath = Directory.GetParent(Application.dataPath).FullName;
+            }
+            else // This is a build
+            {
+                baseSavePath = Directory.GetParent(Application.dataPath).FullName;
+                if (Application.platform == RuntimePlatform.OSXPlayer)
+                {
+                    baseSavePath = Directory.GetParent(baseSavePath).FullName;
+                }
+            }
+
+            filePath = Path.Combine(baseSavePath, "Saves");
+
+            if (!Directory.Exists(filePath))
+            {
+                try
+                {
+                    Directory.CreateDirectory(filePath);
+                    Debug.Log($"Save directory created at: {filePath}");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"Failed to create save directory at {filePath}: {e.Message}. Defaulting to persistentDataPath.");
+                    filePath = Application.persistentDataPath;
+                    if (!Directory.Exists(filePath))
+                    {
+                        try { Directory.CreateDirectory(filePath); }
+                        catch (Exception ex) { Debug.LogError($"Failed to create fallback save directory at {filePath}: {ex.Message}"); }
+                    }
+                }
+            }
+            Debug.Log($"Save files will be stored in: {filePath}");
+            // --- END OF MODIFIED SECTION ---
+
             CurrentSlot = PlayerPrefs.GetInt("SaveIndex", 1);
             Load(CurrentSlot); // Load data for this slot into 'data'
         }
         else
         {
-            Destroy(gameObject); // Destroy duplicate SaveSystem
+            Destroy(gameObject);
         }
     }
 
     public void SetSlot(int slot)
     {
         CurrentSlot = slot;
-        PlayerPrefs.SetInt("SaveIndex", slot); // Remember this slot for next game launch
-        
+        PlayerPrefs.SetInt("SaveIndex", slot);
     }
 
     public void Save()
@@ -50,7 +85,7 @@ public class SaveSystem : MonoBehaviour
             data.coinPositions.Clear();
             foreach (var coin in LevelLoader.instance.mCoins)
             {
-                if (coin != null) 
+                if (coin != null)
                 {
                     data.coinPositions.Add(SerializableVector3.FromVector3(coin.transform.position));
                 }
@@ -58,14 +93,14 @@ public class SaveSystem : MonoBehaviour
         }
         else Debug.LogWarning("LevelLoader instance not found. Coin data not saved.");
 
-        
-        string json = JsonUtility.ToJson(data, true); 
+        // gameProgress (including defeatedEnemyIDs) is part of 'data' and should be saved automatically.
+        // Ensure 'data.gameProgress' is up-to-date from Enemy script interactions.
+
+        string json = JsonUtility.ToJson(data, true);
         string fullPath = Path.Combine(filePath, $"game{CurrentSlot}.save");
 
         try
         {
-            
-
             File.WriteAllText(fullPath, json);
             Debug.Log($"Game saved to: {fullPath}");
         }
@@ -75,9 +110,9 @@ public class SaveSystem : MonoBehaviour
         }
     }
 
-    public void Load(int slot) 
+    public void Load(int slot)
     {
-        CurrentSlot = slot; 
+        CurrentSlot = slot;
 
         string fullPath = Path.Combine(filePath, $"game{slot}.save");
         if (File.Exists(fullPath))
@@ -90,15 +125,25 @@ public class SaveSystem : MonoBehaviour
                 if (data == null)
                 {
                     Debug.LogWarning($"Save file for slot {slot} was empty or corrupted. Initializing new SaveData.");
-                    data = new SaveData(); // Initialize with default values
+                    data = new SaveData(); // Initialize with default values including GameProgress
                 }
                 else
                 {
+                    // Defensive initialization for potentially missing nested objects from older saves
                     if (data.player == null) data.player = new PlayerData();
                     if (data.player.stats == null) data.player.stats = new PlayerStats();
                     if (data.coinPositions == null) data.coinPositions = new List<SerializableVector3>();
                     if (data.audioValues == null) data.audioValues = new SimpleAudioValues();
-                    if (data.gameProgress == null) data.gameProgress = new GameProgress();
+
+                    // Specifically ensure gameProgress and its list are initialized
+                    if (data.gameProgress == null)
+                    {
+                        data.gameProgress = new GameProgress();
+                    }
+                    else if (data.gameProgress.defeatedEnemyIDs == null) // If gameProgress exists but list doesn't (older save)
+                    {
+                        data.gameProgress.defeatedEnemyIDs = new List<string>();
+                    }
                 }
                 Debug.Log($"Game data loaded from slot {slot}. Player position: {data.player.position.ToVector3()}");
             }
@@ -115,7 +160,7 @@ public class SaveSystem : MonoBehaviour
         }
     }
 
-    
+
     public SaveData PeekSlotData(int slot)
     {
         string fullPath = Path.Combine(filePath, $"game{slot}.save");
@@ -125,19 +170,34 @@ public class SaveSystem : MonoBehaviour
             {
                 string json = File.ReadAllText(fullPath);
                 SaveData tempData = JsonUtility.FromJson<SaveData>(json);
-                
-                if (tempData != null && tempData.player == null) tempData.player = new PlayerData(); 
+
+                if (tempData != null)
+                {
+                    if (tempData.player == null) tempData.player = new PlayerData();
+                    // Ensure gameProgress and its list are initialized for peeking too
+                    if (tempData.gameProgress == null)
+                    {
+                        tempData.gameProgress = new GameProgress();
+                    }
+                    else if (tempData.gameProgress.defeatedEnemyIDs == null)
+                    {
+                        tempData.gameProgress.defeatedEnemyIDs = new List<string>();
+                    }
+                }
+                else // File exists but is empty/corrupt
+                {
+                    tempData = new SaveData(); // Return fresh data for display
+                }
                 return tempData;
             }
             catch (Exception e)
             {
                 Debug.LogError($"Failed to peek/parse save file for slot {slot}: {e.Message}");
-                return new SaveData(); 
+                return new SaveData();
             }
         }
-        return new SaveData(); 
+        return new SaveData(); // Return fresh data if no file
     }
-
 
     public bool HasSave(int slot)
     {
@@ -160,7 +220,6 @@ public class SaveSystem : MonoBehaviour
             }
         }
 
-        // If we are resetting the currently loaded slot, also clear the in-memory 'data'
         if (slot == CurrentSlot)
         {
             data = new SaveData(); // Create a fresh SaveData object

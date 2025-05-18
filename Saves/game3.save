@@ -1,0 +1,42 @@
+{
+    "player": {
+        "psuedo": "Patrick",
+        "position": {
+            "x": -2.695138692855835,
+            "y": 3.225619077682495,
+            "z": 0.0
+        },
+        "stats": {
+            "vigor": 0,
+            "endurance": 0,
+            "force": 0,
+            "dexterity": 0,
+            "intelligence": 0,
+            "charisma": 0,
+            "lvl": 7,
+            "xp": 0,
+            "money": 0,
+            "defeatedBosses": [
+                false,
+                false
+            ]
+        }
+    },
+    "coinPositions": [],
+    "audioValues": {
+        "masterVolume": 1.0,
+        "musicVolume": 0.800000011920929,
+        "sfxVolume": 0.800000011920929
+    },
+    "gameProgress": {
+        "enemiesDestroyedCount": 6,
+        "defeatedEnemyIDs": [
+            "33",
+            "EnemyOp",
+            "1dasda",
+            "Enemy2",
+            "Enemy",
+            "2224"
+        ]
+    }
+}
