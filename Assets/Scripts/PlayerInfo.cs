@@ -5,30 +5,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
 
-[Serializable] //Json cant Vectors handle directly
-public struct SerializableVector3
-{
-    public float x,y,z;
-
-    public SerializableVector3(float rX, float rY, float rZ)
-
-    {
-
-        x = rX;
-        y = rY;
-        z = rZ;
-    }
-
-    public Vector3 ToVector3()
-    {
-        return new Vector3(x,y,z);
-    }
-
-    public static SerializableVector3 FromVector3(Vector3 rValue)
-    {
-        return new SerializableVector3(rValue.x, rValue.y, rValue.z);
-    }
-}
 
 
 [Serializable]
@@ -42,6 +18,7 @@ public class PlayerInfo : MonoBehaviour
 
 
 }
+
 [Serializable]
 public class PlayerStats
 {
@@ -50,11 +27,32 @@ public class PlayerStats
     public int money;
     public bool[] defeatedBosses = new bool[2];
 
-
+    public PlayerStats() { /* defaults if needed */ }
 }
+
 
 [Serializable]
 public class SimpleAudioValues
 {
     public float audioVolume = 1.0f;
 }
+
+
+
+[Serializable]
+public class PlayerData
+{
+    public string psuedo;
+    public PlayerStats stats;
+    public SerializableVector3 position;
+}
+
+[Serializable]
+public class SaveData
+{
+    public PlayerData player;
+    public List<SerializableVector3> coinPositions = new List<SerializableVector3>();
+    public SimpleAudioValues audioValues = new SimpleAudioValues();
+}
+
+
