@@ -1,58 +1,75 @@
-using JetBrains.Annotations;
+
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
-using System.IO;
-
-
-
-[Serializable]
-public class PlayerInfo : MonoBehaviour
-{
-    public string psuedo = "Patrick";
-    public PlayerStats stats;
-    public SerializableVector3 position = SerializableVector3.FromVector3(new Vector3(0,1,0));  
-
-
-
-
-}
-
-[Serializable]
-public class PlayerStats
-{
-    public int vigor, endurance, force, dexterity, intelligence, charisma;
-    public int lvl, xp;
-    public int money;
-    public bool[] defeatedBosses = new bool[2];
-
-    public PlayerStats() { /* defaults if needed */ }
-}
 
 
 [Serializable]
 public class SimpleAudioValues
 {
-    public float audioVolume = 1.0f;
+    public float audioVolume = 1.0f; 
+    public SimpleAudioValues()
+    {
+        audioVolume = 1.0f;
+    }
 }
 
+[System.Serializable]
+public class PlayerStats
+{
+    public int vigor, endurance, force, dexterity, intelligence, charisma;
+    public int lvl, xp;
+    public int money;
+    public bool[] defeatedBosses = new bool[2]; // Consider initializing size if fixed
 
+    public PlayerStats()
+    {
+        // Set default values if needed
+        money = 0;
+        lvl = 1;
+        // Initialize defeatedBosses if not done by array declaration
+        if (defeatedBosses == null || defeatedBosses.Length != 2)
+        {
+            defeatedBosses = new bool[2];
+        }
+    }
+}
 
-[Serializable]
+[System.Serializable]
 public class PlayerData
 {
-    public string psuedo;
-    public PlayerStats stats;
-    public SerializableVector3 position;
+    public string psuedo = "Player"; // Default name
+    public PlayerStats stats = new PlayerStats(); // Initialize
+    public SerializableVector3 position; // Will be set from player's transform
+
+    public PlayerData()
+    {
+        if (stats == null) stats = new PlayerStats();
+        // Default position if necessary, though usually set on save
+        position = SerializableVector3.FromVector3(UnityEngine.Vector3.zero);
+    }
 }
 
-[Serializable]
+[System.Serializable]
+public class GameProgress // For enemy count and other general progress
+{
+    public int enemiesDestroyedCount = 0;
+    // Add other general game progress flags/data here
+}
+
+[System.Serializable]
 public class SaveData
 {
-    public PlayerData player;
-    public List<SerializableVector3> coinPositions = new List<SerializableVector3>();
-    public SimpleAudioValues audioValues = new SimpleAudioValues();
+    public PlayerData player = new PlayerData(); // Initialize
+    public List<SerializableVector3> coinPositions = new List<SerializableVector3>(); // Initialize
+    public SimpleAudioValues audioValues = new SimpleAudioValues(); // Initialize
+    public GameProgress gameProgress = new GameProgress(); // Initialize for enemy count
+
+    public SaveData()
+    {
+        // Ensure all members are initialized to avoid nulls
+        if (player == null) player = new PlayerData();
+        if (coinPositions == null) coinPositions = new List<SerializableVector3>();
+        if (audioValues == null) audioValues = new SimpleAudioValues();
+        if (gameProgress == null) gameProgress = new GameProgress();
+    }
 }
-
-

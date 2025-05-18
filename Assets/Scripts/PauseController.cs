@@ -3,6 +3,8 @@ using UnityEngine;
 public class PauseController : MonoBehaviour
 {
     [SerializeField] private GameObject pausePanel;
+    [SerializeField] private GameObject savesPanel;
+    [SerializeField] private GameObject audioPanel;
     private bool isPaused = false;
 
     void Update()
@@ -24,7 +26,10 @@ public class PauseController : MonoBehaviour
 
     public void Resume()
     {
+        
         pausePanel.SetActive(false);
+        savesPanel.SetActive(false);
+        audioPanel.SetActive(false);
         Time.timeScale = 1f;     // resume normal time
         isPaused = false;
     }
